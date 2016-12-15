@@ -45,7 +45,11 @@ function sendList() {
 
         trucks.each(function(i, obj) {
             let truck = $(trucks[i]);
-            let location = truck.children(".loc").contents().filter(function(){ return this.nodeType == 3; }).last().text();
+            var location = truck.children(".loc").contents().filter(function(){ return this.nodeType == 3; }).last().text();
+            // fix carousel name, which cheerio can't parse correctly because of the -
+            if (location == "Carousel") {
+                location = "Greenway, Carousel";
+            }
             let time = truck.children(".tod").text();
             let day = truck.children(".dow").text();
 

@@ -3,7 +3,7 @@ var config = {};
 config.locations =  [
 	'Financial District, Pearl Street at Franklin',
 	'Financial District, Milk and Kilby Streets',
-	'Carousel',
+	'Greenway, Carousel',
 	'City Hall Plaza, Fisher Park'
 ];
 
