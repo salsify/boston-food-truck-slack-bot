@@ -1,133 +1,28 @@
 schedule = require('node-schedule');
 request = require('request');
 config = require('./config');
+cheerio = require('cheerio');
 
-// BostonFeed URLs
-location_url = 'http://bostonfeed.me/backend/getLocation.php';
-truck_url = 'http://bostonfeed.me/backend/getTruck.php';
+raw_url = 'http://www.cityofboston.gov/foodtrucks/schedule-app-min.asp';
 
-// Sets up and sends the populated food truck list to Slack.
-function sendFoodTruckList() {
-	request(truck_url, function (error, response, body) {
-		if (!error && response.statusCode == 200) {
-			truck_info = JSON.parse(body);
+days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-			var found_trucks = [];
-			var current_date = new Date();
-			var current_day = current_date.getDay();
-
-			request(location_url, function (error, response, body) {
-				if (!error && response.statusCode == 200) {
-					body = JSON.parse(body);
-					truck_arr = Object.keys(body).map(function(k) { return body[k] });
-
-					for (var i = 0; i < truck_arr.length; i++) {
-						truck = truck_arr[i];
-						days = truck.day.split(',');
-
-						if (days.indexOf(current_day.toString()) > -1) {
-							for (var j = 0; j < config.locations.length; j++) {
-								if (truck.location_id === config.locations[j]) {
-									truck = mapTruck(truck_info, truck);
-
-									if (!(truck.location in found_trucks)) {
-										found_trucks[truck.location] = [truck];
-									} else {
-										found_trucks[truck.location].push(truck);
-									}
-								}
-							}
-						}
-					}
-				}
-				sendSlackReponse(found_trucks);
-			});
-		}
-	});
-}
-
-// Maps the truck information with the found location trucks.
-function mapTruck(truck_info, found_truck) {
-	for (var i = 0; i < truck_info.length; i++) {
-		if (truck_info[i].route_name.toUpperCase() === found_truck.truck_route.toUpperCase()) {
-			found_truck.name_url = 'https://twitter.com/' + truck_info[i].twitter;
-			found_truck.yelp_rating_emoji = parseYelpRating(truck_info[i].yelp_rating);
-			found_truck.type_emoji = parseType(truck_info[i].type_name);
-		}
-	}
-
-	return found_truck;
-}
-
-// Parses the Yelp rating into :star: emojis.
-function parseYelpRating(rating) {
-	var rating_int = parseInt(rating);
-	var rating_str = ':star:';
-
-	for (var i = 0; i < rating_int - 1; i++) {
-		rating_str = rating_str + ':star:';
-	}
-
-	return rating_str;
-}
-
-// Parses the food truck type and returns an emoji message based on it.
-function parseType(type) {
-	switch(type) {
-		case 'Mexican':
-			return ':taco:'
-			break;
-		case 'Asian':
-			return ':ramen:'
-			break;
-		case 'Healthy':
-			return ':apple:'
-			break;
-		case 'American':
-			return ':us:'
-			break;
-		case 'International':
-			return ':earth_americas:'
-			break;
-		case 'Sandwiches':
-			return ':bread:'
-			break;
-		case 'Burgers':
-			return ':hamburger:'
-			break;
-		case 'Dessert':
-			return ':cake:'
-			break;
-		case 'Pizza':
-			return ':pizza:'
-			break;
-		case 'Drinks':
-			return ':tropical_drink:'
-			break;
-		default:
-			return '';
-	}
-}
-
-// Sends the Slack message via an incoming webhook.
-function sendSlackReponse(found_trucks) {
-	var slack_message = buildSlackMessage(found_trucks);
+function sendSlackMessage(trucks) {
+	var slack_message = buildSlackMessage(trucks);
 
 	request.post({url: config.slack_url, body: slack_message}, function (error, response, body) {
 		console.log(body);
 	});
 }
 
-// Builds the Slack message to send.
-function buildSlackMessage(found_trucks) {
+function buildSlackMessage(trucks) {
 	var text = '';
 
-	for (var location in found_trucks) {
+	for (var location in trucks) {
 		text = text + '*' + location + '*' + '\n';
-		trucks_arr = found_trucks[location];
+		trucks_arr = trucks[location];
 		for (var i = 0; i < trucks_arr.length; i++) {
-			truck = trucks_arr[i];
-			text = text + '> ' + truck.type_emoji + ' *' + truck.truck_name + ':* ' + truck.name_url + ' ' + truck.yelp_rating_emoji + '\n'
+			text = text + '> ' + trucks_arr[i] + '\n'
 		}
 	}
 
@@ -135,12 +30,39 @@ function buildSlackMessage(found_trucks) {
 		username: config.slack_bot_name,
 		icon_emoji: config.slack_bot_emoji,
 		text: text
-	}
+	};
 
 	return JSON.stringify(json_obj);
 }
 
-// Schedule a job every Mon-Fri at 16:00 UTC.
+function sendList() {
+    request(raw_url, function (error, response, body) {
+        let $ = cheerio.load(body);
+        let trucks = $(".trFoodTrucks");
+        let today = days[(new Date()).getDay()];
+
+        var todays_trucks_by_loc = []; // map of location to list of trucks
+
+        trucks.each(function(i, obj) {
+            let truck = $(trucks[i]);
+            let location = truck.children(".loc").contents().filter(function(){ return this.nodeType == 3; }).last().text();
+            let time = truck.children(".tod").text();
+            let day = truck.children(".dow").text();
+
+            if (config.locations.includes(location) && time == "Lunch" && day == today) {
+                let company = truck.children(".com").text();
+                if (!(location in todays_trucks_by_loc)) {
+                    todays_trucks_by_loc[location] = [company];
+                } else {
+                    todays_trucks_by_loc[location].push(company);
+                }
+            }
+        });
+
+        sendSlackMessage(todays_trucks_by_loc);
+    });
+}
+
 schedule.scheduleJob(config.job_time, function(){
-	sendFoodTruckList();
+    sendList();
 });
