@@ -2,8 +2,8 @@ var config = {};
 
 // Truck locations by ID. See: http://bostonfeed.me/backend/getLocation.php
 config.locations =  [
-	'dewey',
-	'greenway-dewey-congress',
+	// 'dewey',
+	// 'greenway-dewey-congress',
 	// clarendon-trinity,
 	// greenway-roweswharf,
 	// bostoncommon,
@@ -16,7 +16,7 @@ config.locations =  [
 	// mgh,
 	// stuart-trinity,
 	// watertown-arsenal,
-	// cityhallplaza,
+	'cityhallplaza',
 	// bostonpubliclibrary,
 	// innovationdistrict,
 	// chinatown-gate,
@@ -29,9 +29,10 @@ config.locations =  [
 	// federal-101,
 	// greenway-milk,
 	// lexington,
-	// greenway-carousel,
+	'greenway-carousel',
 	// sowa,
-	// financial-milk-kilby,
+	'financial-milk-kilby',
+	'financial-pearl-franklin',
 	// dorchester-lena-park,
 	// charlestown-bha,
 	// neu-centennial,
